@@ -8,7 +8,7 @@ the hosted database is only ever changed by replaying those files through the Su
 > change is a new migration file, reviewed in a PR, applied by CI. A hand edit makes
 > `supabase db push` fail with a history-mismatch error for everyone.
 
-The CLI ships as a dev dependency, so there is nothing to install globally — every command below is wrapped in a `pnpm exec` .
+The CLI ships as a dev dependency, so there is nothing to install globally — every command below is wrapped in `pnpm exec`.
 
 ---
 
@@ -114,8 +114,8 @@ by CI (below).
 
 `.github/workflows/db-migrations.yml` owns production:
 
-- **PR that touches `supabase/**`** → `supabase db push --dry-run` comments-worthy output in
-the check logs: exactly which migrations would run. Nothing is applied.
+- **PR that touches `supabase/**`** → `supabase db push --dry-run`, which prints exactly which migrations would run in
+the check logs. Nothing is applied.
 - **Merge to `main`** → `supabase db push` applies every pending migration to the production
 project.
 - **Manual run** (Actions tab → "Database migrations" → Run workflow) → same as a merge to
@@ -156,8 +156,8 @@ project's Auth settings are set by hand (Dashboard → Authentication):
 | ------------------------------------------------------ | ---------------------------------------------------- |
 | `pnpm exec supabase start` / `pnpm exec supabase stop` | boot / stop the local Docker stack                   |
 | `pnpm exec supabase status` (`-o env` for env format) | show local stack URLs and keys                       |
-| `pnpm exec supabase migration new <>`                  | create an empty timestamped migration                |
-| `pnpm exec supabase db diff -f <>`                     | write local schema drift into a new migration        |
+| `pnpm exec supabase migration new <name>`              | create an empty timestamped migration                |
+| `pnpm exec supabase db diff -f <name>`                 | write local schema drift into a new migration        |
 | `pnpm exec supabase db reset`                          | rebuild local DB from migrations + `seed.sql`        |
 | `pnpm exec supabase migration up`                      | apply only not-yet-applied migrations locally        |
 | `pnpm exec supabase migration list`                    | show local vs remote migration status (needs `link`) |
