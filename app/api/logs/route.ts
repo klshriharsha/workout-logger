@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/integrations/supabase/client'
+import { createSupabaseServerClient } from '@/integrations/supabase/server'
 import { withErrorHandling } from '@/lib/api-handler'
 import { logDateSchema, type LogSummary } from '@/lib/log-schema'
 
@@ -12,6 +12,7 @@ export const GET = withErrorHandling(async (request) => {
     return NextResponse.json({ error: 'from and to must be YYYY-MM-DD dates' }, { status: 400 })
   }
 
+  const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('workout_logs')
     .select('log_date, plan_name')

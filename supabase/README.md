@@ -16,7 +16,7 @@ The CLI ships as a dev dependency, so there is nothing to install globally — e
 
 ### 1. Environment
 
-The app itself needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see
+The app itself needs `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in `.env.local` (see
 [`.env.example`](../.env.example)). That is enough to run `next dev` against an existing
 database.
 
@@ -53,15 +53,21 @@ Point `.env.local` at the local stack while developing:
 
 ```
 SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
 ```
 
-`config.toml` disables Supabase Auth (`[auth] enabled = false`), so `supabase status` prints
-only URLs — no API key. And with no custom `jwt_secret`, the stack uses the Supabase CLI's
-built-in default keys: the `service_role` JWT above is a fixed, well-known value, identical on
-every machine and unchanged by restarts or `db reset`. It is a local-only dev credential, not
-a secret. (If you ever enable `[auth]`, `pnpm exec supabase status` — add `-o env` for env
-format — will list the keys instead.)
+With no custom `jwt_secret`, the stack uses the Supabase CLI's built-in default keys: the
+key above is fixed and well-known, identical on every machine and unchanged by restarts or
+`db reset`. It is a local-only dev credential, not a secret. `pnpm exec supabase status`
+(add `-o env` for env format) lists it.
+
+### Signing in locally
+
+Sign-in is by emailed code (Supabase Auth, configured under `[auth]` in `config.toml`). The
+local stack never sends real email: every message lands in Mailpit at
+[http://127.0.0.1:54324](http://127.0.0.1:54324). Sign in with any address, open Mailpit, and
+type the 6-digit code it shows. A new address creates a new, empty account, which is the
+easiest way to check that two users can't see each other's data.
 
 Studio (table browser, SQL editor) runs at [http://127.0.0.1:54323](http://127.0.0.1:54323). `pnpm exec supabase stop` shuts the stack down; data survives between `start`/`stop` until you `pnpm exec supabase db reset` or `pnpm exec supabase stop --no-backup`.
 
@@ -126,6 +132,21 @@ It needs three repository secrets (Settings → Secrets and variables → Action
 | `SUPABASE_DB_PASSWORD`  | Dashboard → Settings → Database → Database password                                            |
 
 
+### Auth settings (one-time, in the dashboard)
+
+`config.toml` only configures the local stack, and CI only pushes migrations, so the hosted
+project's Auth settings are set by hand (Dashboard → Authentication):
+
+- **Sign In / Providers → Email:** enabled, with *Email OTP Length* at **6** (it must match
+  `SIGN_IN_CODE_LENGTH` in `lib/auth-schema.ts`) and *Email OTP Expiration* at **600** seconds.
+- **Emails → Templates:** paste `supabase/templates/sign-in-code.html` into both **Magic Link**
+  and **Confirm signup** (subject: "Your Workout Logger sign-in code"). The default templates
+  send a link, not the code, and the app has nowhere for that link to land.
+- **URL Configuration → Site URL:** the production URL.
+- **Emails → SMTP Settings:** a real email provider. Supabase's built-in sender only delivers
+  to the project's team members and a handful of messages an hour, so nobody else could sign
+  in without one.
+
 ---
 
 ## Cheat sheet
@@ -134,7 +155,7 @@ It needs three repository secrets (Settings → Secrets and variables → Action
 | Command                                                | Does                                                 |
 | ------------------------------------------------------ | ---------------------------------------------------- |
 | `pnpm exec supabase start` / `pnpm exec supabase stop` | boot / stop the local Docker stack                   |
-| `pnpm exec supabase status` (`-o env` for env format) | show local stack URLs (keys too, if `[auth]` is on)  |
+| `pnpm exec supabase status` (`-o env` for env format) | show local stack URLs and keys                       |
 | `pnpm exec supabase migration new <>`                  | create an empty timestamped migration                |
 | `pnpm exec supabase db diff -f <>`                     | write local schema drift into a new migration        |
 | `pnpm exec supabase db reset`                          | rebuild local DB from migrations + `seed.sql`        |

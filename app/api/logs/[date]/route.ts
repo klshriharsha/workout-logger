@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { supabase } from '@/integrations/supabase/client'
+import { createSupabaseServerClient } from '@/integrations/supabase/server'
 import { withErrorHandling } from '@/lib/api-handler'
 import { logDateSchema, saveLogSchema, startLogSchema, type WorkoutLog } from '@/lib/log-schema'
 import { logger } from '@/lib/logger'
@@ -11,7 +11,9 @@ const UNIQUE_VIOLATION = '23505'
 
 const invalidDate = () => NextResponse.json({ error: 'Date must be YYYY-MM-DD' }, { status: 400 })
 
-async function readLog(date: string) {
+type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>
+
+async function readLog(supabase: SupabaseClient, date: string) {
   const { data, error } = await supabase.rpc('get_workout_log', { p_date: date })
 
   if (error) throw error
@@ -24,7 +26,9 @@ export const GET = withErrorHandling<Context>(async (_request, context) => {
   const date = logDateSchema.safeParse((await context.params).date)
   if (!date.success) return invalidDate()
 
-  return NextResponse.json({ log: await readLog(date.data) })
+  const supabase = await createSupabaseServerClient()
+
+  return NextResponse.json({ log: await readLog(supabase, date.data) })
 })
 
 /** POST /api/logs/:date `{ planId }` — starts the day's log from a plan. */
@@ -37,6 +41,7 @@ export const POST = withErrorHandling<Context>(async (request, context) => {
     return NextResponse.json({ error: 'Invalid request', issues: z.flattenError(parsed.error) }, { status: 400 })
   }
 
+  const supabase = await createSupabaseServerClient()
   const { data: id, error } = await supabase.rpc('create_workout_log', { p_date: date.data, p_plan_id: parsed.data.planId })
 
   if (error?.code === UNIQUE_VIOLATION) {
@@ -47,7 +52,7 @@ export const POST = withErrorHandling<Context>(async (request, context) => {
 
   logger.info({ logId: id, date: date.data, planId: parsed.data.planId }, 'Started workout log')
 
-  return NextResponse.json({ log: await readLog(date.data) }, { status: 201 })
+  return NextResponse.json({ log: await readLog(supabase, date.data) }, { status: 201 })
 })
 
 /** PUT /api/logs/:date `{ exercises }` — replaces the day's logged exercises and sets. */
@@ -60,6 +65,7 @@ export const PUT = withErrorHandling<Context>(async (request, context) => {
     return NextResponse.json({ error: 'Invalid log', issues: z.flattenError(parsed.error) }, { status: 400 })
   }
 
+  const supabase = await createSupabaseServerClient()
   const { data: saved, error } = await supabase.rpc('save_workout_log', {
     p_date: date.data,
     p_exercises: parsed.data.exercises,
@@ -76,6 +82,8 @@ export const DELETE = withErrorHandling<Context>(async (_request, context) => {
   const date = logDateSchema.safeParse((await context.params).date)
   if (!date.success) return invalidDate()
 
+  const supabase = await createSupabaseServerClient()
+  // Row Level Security limits this to the caller's own log for the day.
   const { error } = await supabase.from('workout_logs').delete().eq('log_date', date.data)
 
   if (error) throw error

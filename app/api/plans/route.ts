@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { supabase } from '@/integrations/supabase/client'
+import { createSupabaseServerClient } from '@/integrations/supabase/server'
 import { withErrorHandling } from '@/lib/api-handler'
 import { logger } from '@/lib/logger'
 import { createPlanSchema, type PlanSummary } from '@/lib/plan-schema'
 
 export const GET = withErrorHandling(async () => {
+  const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('workout_plans')
     .select('id, name, created_at, plan_exercises(sets)')
@@ -33,6 +34,7 @@ export const POST = withErrorHandling(async (request) => {
   }
 
   const { name, exercises } = parsed.data
+  const supabase = await createSupabaseServerClient()
   const { data: id, error } = await supabase.rpc('create_workout_plan', { p_name: name, p_exercises: exercises })
 
   if (error) throw error

@@ -1,4 +1,9 @@
 import Link from 'next/link'
+import { connection } from 'next/server'
+import { Suspense } from 'react'
+import { AccountMenu } from '@/components/AccountMenu'
+import { Logo } from '@/components/Logo'
+import { createSupabaseServerClient } from '@/integrations/supabase/server'
 
 type AppHeaderProps = {
   /** Which section of the app the page belongs to, highlighted in the nav. */
@@ -16,18 +21,9 @@ export function AppHeader({ active }: AppHeaderProps) {
     <header className="sticky top-0 z-[60] border-b border-sand-900 bg-sand-972/88 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-180 items-center gap-3.5 px-[clamp(16px,4vw,28px)]">
         <div className="flex items-center gap-2.5">
-          <svg className="h-6.5 w-6.5" viewBox="0 0 512 512" role="img" aria-label="Workout Logger">
-            <rect width="512" height="512" rx="116" fill="#0f766e" />
-            <g fill="#ffffff">
-              <rect x="96" y="238" width="320" height="36" rx="18" />
-              <rect x="92" y="166" width="54" height="180" rx="20" />
-              <rect x="366" y="166" width="54" height="180" rx="20" />
-              <rect x="58" y="206" width="34" height="100" rx="14" />
-              <rect x="420" y="206" width="34" height="100" rx="14" />
-            </g>
-            <rect x="196" y="226" width="120" height="60" rx="22" fill="#e6902f" />
-          </svg>
-          <span className="text-lg font-bold tracking-[-0.02em]">Workout Logger</span>
+          <Logo className="h-6.5 w-6.5" />
+          {/* On narrow phones the mark alone carries the brand, to leave room for the nav and account. */}
+          <span className="text-lg font-bold tracking-[-0.02em] max-[440px]:sr-only">Workout Logger</span>
         </div>
         <nav className="ml-auto flex gap-5 self-stretch" aria-label="Main">
           {navItems.map((item) => (
@@ -41,7 +37,25 @@ export function AppHeader({ active }: AppHeaderProps) {
             </Link>
           ))}
         </nav>
+        {/* Who's signed in comes from the request's cookies, so it streams in after the static shell. */}
+        <Suspense fallback={<span className="h-8 w-8 shrink-0 rounded-full bg-sand-930" aria-hidden />}>
+          <Account />
+        </Suspense>
       </div>
     </header>
   )
+}
+
+async function Account() {
+  // Checking the session reads the clock (token expiry), which a prerender — even one that has
+  // the cookies, like a runtime prefetch — mustn't do. Wait for the real request.
+  await connection()
+  const supabase = await createSupabaseServerClient()
+  const { data } = await supabase.auth.getClaims()
+  const email = data?.claims.email
+
+  // The proxy only lets signed-in visitors reach pages with this header.
+  if (typeof email !== 'string') return null
+
+  return <AccountMenu email={email} />
 }
