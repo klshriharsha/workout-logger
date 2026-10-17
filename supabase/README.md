@@ -16,9 +16,10 @@ The CLI ships as a dev dependency, so there is nothing to install globally — e
 
 ### 1. Environment
 
-The app itself needs `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in `.env.local` (see
+The app itself only needs `DATABASE_URL`, a Postgres connection string, in `.env.local` (see
 [`.env.example`](../.env.example)). That is enough to run `next dev` against an existing
-database.
+database. For a hosted project, use the **Transaction pooler** string (Dashboard → Connect,
+port 6543): it suits serverless hosts like Vercel, which open many short-lived connections.
 
 The migration tooling additionally needs a **Supabase access token** so it can talk to the
 hosted project:
@@ -52,22 +53,24 @@ pnpm exec supabase db reset         # drops the local DB, replays every migratio
 Point `.env.local` at the local stack while developing:
 
 ```
-SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
-With no custom `jwt_secret`, the stack uses the Supabase CLI's built-in default keys: the
-key above is fixed and well-known, identical on every machine and unchanged by restarts or
-`db reset`. It is a local-only dev credential, not a secret. `pnpm exec supabase status`
-(add `-o env` for env format) lists it.
+That's the local stack's fixed, well-known database URL, identical on every machine and
+unchanged by restarts or `db reset`. It is a local-only dev credential, not a secret.
+`pnpm exec supabase status` lists it as *DB URL*.
 
 ### Signing in locally
 
-Sign-in is by emailed code (Supabase Auth, configured under `[auth]` in `config.toml`). The
-local stack never sends real email: every message lands in Mailpit at
-[http://127.0.0.1:54324](http://127.0.0.1:54324). Sign in with any address, open Mailpit, and
-type the 6-digit code it shows. A new address creates a new, empty account, which is the
-easiest way to check that two users can't see each other's data.
+Accounts are email and password, kept in the app's own `public.users` table (sessions in
+`public.sessions`); nothing is emailed. Use **Create an account** on the sign-in page with any
+address, real or not. A second account is the easiest way to check that two users can't see
+each other's data.
+
+To set or reset a password, for example a forgotten one, or one for an account created back
+when sign-in was by emailed code (those were carried over without a password), run
+`pnpm set-password you@example.com`. It changes the database `DATABASE_URL` points at, and
+signs that account out everywhere.
 
 Studio (table browser, SQL editor) runs at [http://127.0.0.1:54323](http://127.0.0.1:54323). `pnpm exec supabase stop` shuts the stack down; data survives between `start`/`stop` until you `pnpm exec supabase db reset` or `pnpm exec supabase stop --no-backup`.
 
@@ -132,20 +135,10 @@ It needs three repository secrets (Settings → Secrets and variables → Action
 | `SUPABASE_DB_PASSWORD`  | Dashboard → Settings → Database → Database password                                            |
 
 
-### Auth settings (one-time, in the dashboard)
+### Auth settings
 
-`config.toml` only configures the local stack, and CI only pushes migrations, so the hosted
-project's Auth settings are set by hand (Dashboard → Authentication):
-
-- **Sign In / Providers → Email:** enabled, with *Email OTP Length* at **6** (it must match
-  `SIGN_IN_CODE_LENGTH` in `lib/auth-schema.ts`) and *Email OTP Expiration* at **600** seconds.
-- **Emails → Templates:** paste `supabase/templates/sign-in-code.html` into both **Magic Link**
-  and **Confirm signup** (subject: "Your Workout Logger sign-in code"). The default templates
-  send a link, not the code, and the app has nowhere for that link to land.
-- **URL Configuration → Site URL:** the production URL.
-- **Emails → SMTP Settings:** a real email provider. Supabase's built-in sender only delivers
-  to the project's team members and a handful of messages an hour, so nobody else could sign
-  in without one.
+None. The app doesn't use Supabase Auth or send email, so the hosted project needs no Auth,
+template or SMTP setup: once the migrations are applied, the app only needs `DATABASE_URL`.
 
 ---
 

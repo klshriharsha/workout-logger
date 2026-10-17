@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  SUPABASE_URL: z.url('SUPABASE_URL is required'),
-  SUPABASE_PUBLISHABLE_KEY: z.string().min(1, 'SUPABASE_PUBLISHABLE_KEY is required'),
+  DATABASE_URL: z.string().startsWith('postgres', 'DATABASE_URL must be a postgres:// connection string'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 })
 

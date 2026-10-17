@@ -2,8 +2,7 @@ import { z } from 'zod'
 
 // Shared by the sign-in form (client) and /api/auth (server).
 
-/** Digits in the emailed sign-in code. Matches `otp_length` in supabase/config.toml and the hosted project. */
-export const SIGN_IN_CODE_LENGTH = 6
+export const PASSWORD_MIN_LENGTH = 8
 
 // Normalised before it's checked, so " Me@Example.com" is the same account as "me@example.com".
 export const emailSchema = z
@@ -12,16 +11,17 @@ export const emailSchema = z
   .toLowerCase()
   .pipe(z.email('Enter a valid email address').max(254, 'Email is too long'))
 
-export const requestCodeSchema = z.object({
+export const signInSchema = z.object({
   email: emailSchema,
+  password: z.string('Enter your password').min(1, 'Enter your password').max(200, 'Password is too long'),
 })
 
-export const verifyCodeSchema = z.object({
+export const signUpSchema = z.object({
   email: emailSchema,
-  code: z
-    .string()
-    .trim()
-    .regex(new RegExp(`^\\d{${SIGN_IN_CODE_LENGTH}}$`), `Enter the ${SIGN_IN_CODE_LENGTH}-digit code from the email`),
+  password: z
+    .string('Choose a password')
+    .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters`)
+    .max(200, 'Password is too long'),
 })
 
 /**

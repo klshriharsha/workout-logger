@@ -14,7 +14,7 @@ export default function SignInPage() {
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo className="h-12 w-12" />
           <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em]">Sign in to Workout Logger</h1>
-          <p className="mt-1 text-sm text-ink-480">We&apos;ll email you a code. New here? The same code creates your account.</p>
+          <p className="mt-1 text-sm text-ink-480">New here? Create an account with your email and a password.</p>
         </div>
 
         {/* Where to go afterwards comes from ?next=, which is only known in the browser. */}

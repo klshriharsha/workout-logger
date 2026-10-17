@@ -3,7 +3,7 @@ import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
-import { createSupabaseServerClient } from '@/integrations/supabase/server'
+import { getSessionUser } from '@/lib/session'
 
 type AppHeaderProps = {
   /** Which section of the app the page belongs to, highlighted in the nav. */
@@ -47,15 +47,13 @@ export function AppHeader({ active }: AppHeaderProps) {
 }
 
 async function Account() {
-  // Checking the session reads the clock (token expiry), which a prerender — even one that has
-  // the cookies, like a runtime prefetch — mustn't do. Wait for the real request.
+  // Checking the session reads the database (and its expiry, the clock), which a prerender — even
+  // one that has the cookies, like a runtime prefetch — mustn't do. Wait for the real request.
   await connection()
-  const supabase = await createSupabaseServerClient()
-  const { data } = await supabase.auth.getClaims()
-  const email = data?.claims.email
+  const user = await getSessionUser()
 
   // The proxy only lets signed-in visitors reach pages with this header.
-  if (typeof email !== 'string') return null
+  if (!user) return null
 
-  return <AccountMenu email={email} />
+  return <AccountMenu email={user.email} />
 }

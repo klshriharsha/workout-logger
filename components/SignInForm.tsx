@@ -2,9 +2,9 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
-import { requestCodeSchema, safeNextPath, SIGN_IN_CODE_LENGTH, verifyCodeSchema } from '@/lib/auth-schema'
+import { PASSWORD_MIN_LENGTH, safeNextPath, signInSchema, signUpSchema } from '@/lib/auth-schema'
 
-type Step = { name: 'email' } | { name: 'code'; email: string }
+type Mode = 'sign-in' | 'sign-up'
 
 const inputClass =
   'w-full rounded-lg border border-sand-880 bg-sand-1000 px-3 py-2.5 text-[15px] text-ink-240 outline-none transition-colors placeholder:text-sand-680 focus:border-teal-accent aria-invalid:border-red-accent'
@@ -20,71 +20,38 @@ async function errorMessage(response: Response, fallback: string) {
   return response.status < 500 && body?.error ? body.error : fallback
 }
 
-/** Sign in (or sign up) with an emailed code: enter your email, then the code it gets. */
+/** Sign in with an email and password, or create an account with them. */
 export function SignInForm() {
   const searchParams = useSearchParams()
-  const [step, setStep] = useState<Step>({ name: 'email' })
+  const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string>()
-  const [notice, setNotice] = useState<string>()
-  const [busy, setBusy] = useState<false | 'sending' | 'verifying'>(false)
+  const [busy, setBusy] = useState(false)
 
-  const sendCode = async (address: string) => {
-    const response = await fetch('/api/auth/code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: address }),
-    })
-    if (!response.ok) throw new Error(await errorMessage(response, 'Could not send the code. Try again.'))
-  }
+  const signingUp = mode === 'sign-up'
 
-  const submitEmail = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (busy) return
 
-    const parsed = requestCodeSchema.safeParse({ email })
+    const parsed = (signingUp ? signUpSchema : signInSchema).safeParse({ email, password })
     if (!parsed.success) {
       setError(parsed.error.issues[0].message)
       return
     }
 
     setError(undefined)
-    setBusy('sending')
+    setBusy(true)
     try {
-      await sendCode(parsed.data.email)
-      setCode('')
-      setNotice(undefined)
-      setStep({ name: 'code', email: parsed.data.email })
-    } catch (failure) {
-      setError((failure as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const submitCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (busy || step.name !== 'code') return
-
-    const parsed = verifyCodeSchema.safeParse({ email: step.email, code })
-    if (!parsed.success) {
-      setError(parsed.error.issues[0].message)
-      return
-    }
-
-    setError(undefined)
-    setNotice(undefined)
-    setBusy('verifying')
-    try {
-      const response = await fetch('/api/auth/verify', {
+      const response = await fetch(signingUp ? '/api/auth/sign-up' : '/api/auth/sign-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),
       })
       if (!response.ok) throw new Error(await errorMessage(response, 'Could not sign in. Try again.'))
 
-      // A full page load, so the app starts fresh with the new session's cookies.
+      // A full page load, so the app starts fresh with the new session's cookie.
       window.location.replace(safeNextPath(searchParams.get('next')))
     } catch (failure) {
       setError((failure as Error).message)
@@ -92,81 +59,45 @@ export function SignInForm() {
     }
   }
 
-  const resend = async () => {
-    if (busy || step.name !== 'code') return
-
+  const switchMode = () => {
     setError(undefined)
-    setNotice(undefined)
-    setBusy('sending')
-    try {
-      await sendCode(step.email)
-      setNotice('A new code is on its way.')
-    } catch (failure) {
-      setError((failure as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const changeEmail = () => {
-    setError(undefined)
-    setNotice(undefined)
-    setStep({ name: 'email' })
-  }
-
-  const card = 'rounded-2xl border border-sand-900 bg-sand-1000 px-4.5 py-4 shadow-card'
-
-  if (step.name === 'email') {
-    return (
-      <form onSubmit={submitEmail} noValidate className={card}>
-        <label htmlFor="sign-in-email" className="mb-1.5 block text-sm font-semibold">
-          Email
-        </label>
-        <input
-          id="sign-in-email"
-          type="email"
-          className={inputClass}
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          autoComplete="email"
-          autoCapitalize="none"
-          spellCheck={false}
-          autoFocus
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? 'sign-in-error' : undefined}
-        />
-        {error && (
-          <p id="sign-in-error" role="alert" className="mt-1.5 text-[13px] text-red-accent">
-            {error}
-          </p>
-        )}
-        <button type="submit" className={submitClass} disabled={Boolean(busy)}>
-          {busy ? 'Sending…' : 'Email me a code'}
-        </button>
-      </form>
-    )
+    setMode(signingUp ? 'sign-in' : 'sign-up')
   }
 
   return (
-    <form onSubmit={submitCode} noValidate className={card}>
-      <p className="mb-3 text-sm text-ink-480">
-        We sent a {SIGN_IN_CODE_LENGTH}-digit code to <span className="font-semibold text-ink-240">{step.email}</span>. It
-        expires in 10 minutes.
-      </p>
-      <label htmlFor="sign-in-code" className="mb-1.5 block text-sm font-semibold">
-        Code
+    <form
+      onSubmit={submit}
+      noValidate
+      className="rounded-2xl border border-sand-900 bg-sand-1000 px-4.5 py-4 shadow-card"
+    >
+      <label htmlFor="sign-in-email" className="mb-1.5 block text-sm font-semibold">
+        Email
       </label>
       <input
-        id="sign-in-code"
-        className={`${inputClass} text-center font-mono text-xl tracking-[0.4em]`}
-        value={code}
-        onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, SIGN_IN_CODE_LENGTH))}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        placeholder={'0'.repeat(SIGN_IN_CODE_LENGTH)}
-        maxLength={SIGN_IN_CODE_LENGTH}
+        id="sign-in-email"
+        type="email"
+        className={inputClass}
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="you@example.com"
+        autoComplete="email"
+        autoCapitalize="none"
+        spellCheck={false}
         autoFocus
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? 'sign-in-error' : undefined}
+      />
+      <label htmlFor="sign-in-password" className="mt-3 mb-1.5 block text-sm font-semibold">
+        Password
+      </label>
+      <input
+        id="sign-in-password"
+        type="password"
+        className={inputClass}
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        placeholder={signingUp ? `At least ${PASSWORD_MIN_LENGTH} characters` : undefined}
+        autoComplete={signingUp ? 'new-password' : 'current-password'}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? 'sign-in-error' : undefined}
       />
@@ -175,22 +106,15 @@ export function SignInForm() {
           {error}
         </p>
       )}
-      {notice && (
-        <p role="status" className="mt-1.5 text-[13px] text-teal-tint-text">
-          {notice}
-        </p>
-      )}
-      <button type="submit" className={submitClass} disabled={Boolean(busy)}>
-        {busy === 'verifying' ? 'Checking…' : 'Sign in'}
+      <button type="submit" className={submitClass} disabled={busy}>
+        {signingUp ? (busy ? 'Creating account…' : 'Create account') : busy ? 'Signing in…' : 'Sign in'}
       </button>
-      <div className="mt-3 flex justify-between gap-3">
-        <button type="button" onClick={changeEmail} disabled={Boolean(busy)} className={linkButtonClass}>
-          Use a different email
+      <p className="mt-3 text-center text-sm text-ink-480">
+        {signingUp ? 'Already have an account? ' : 'New here? '}
+        <button type="button" onClick={switchMode} disabled={busy} className={linkButtonClass}>
+          {signingUp ? 'Sign in' : 'Create an account'}
         </button>
-        <button type="button" onClick={resend} disabled={Boolean(busy)} className={linkButtonClass}>
-          {busy === 'sending' ? 'Sending…' : 'Send a new code'}
-        </button>
-      </div>
+      </p>
     </form>
   )
 }

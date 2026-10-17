@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/integrations/supabase/server'
-import { withErrorHandling } from '@/lib/api-handler'
+import { withUser } from '@/lib/api-handler'
 import { buildOverview, type ExerciseHistoryEntry } from '@/lib/progress'
 
 /** GET /api/history — workout days, a summary per exercise and the latest personal records. */
-export const GET = withErrorHandling(async () => {
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase.rpc('get_exercise_history')
+export const GET = withUser(async (_request, _context, db) => {
+  const [{ history }] = await db<{ history: ExerciseHistoryEntry[] }[]>`select public.get_exercise_history() as history`
 
-  if (error) throw error
-
-  return NextResponse.json(buildOverview(data as ExerciseHistoryEntry[]))
+  return NextResponse.json(buildOverview(history))
 })

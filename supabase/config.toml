@@ -29,49 +29,13 @@ enabled = true
 port = 54323
 api_url = "http://127.0.0.1:54321"
 
-# Users sign in with a 6-digit code sent to their email: no passwords, and nothing to click, so
-# it works inside the installed home-screen app (a link would open the browser instead). The
-# app never uses a browser client; Route Handlers call Auth server-side and keep the session in
-# cookies. Realtime and Storage aren't used, so those stacks stay disabled.
-#
-# These settings apply to the LOCAL stack only. The hosted project is configured in the
-# dashboard; see supabase/README.md.
+# Accounts and sessions live in the app's own tables (public.users, public.sessions), not in
+# Supabase Auth. Auth stays enabled only because the hosted project always runs it: its schema
+# provides auth.uid(), which the Row Level Security policies read. No email is ever sent.
+# Realtime and Storage aren't used, so those stacks stay disabled.
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-enable_signup = true
-# Access tokens are short-lived; the proxy refreshes them from the refresh token as needed.
-jwt_expiry = 3600
-enable_refresh_token_rotation = true
-
-[auth.email]
-enable_signup = true
-# A code proves the address, so there's no separate confirmation step.
-enable_confirmations = false
-otp_length = 6
-# Seconds a code stays valid.
-otp_expiry = 600
-# Minimum time between two codes to the same address.
-max_frequency = "60s"
-
-# Both templates carry the code rather than a link: "magic_link" goes to existing users, and
-# "confirmation" to new ones when confirmations are on (as they are on hosted projects).
-[auth.email.template.magic_link]
-subject = "Your Workout Logger sign-in code"
-content_path = "./supabase/templates/sign-in-code.html"
-
-[auth.email.template.confirmation]
-subject = "Your Workout Logger sign-in code"
-content_path = "./supabase/templates/sign-in-code.html"
-
-[auth.rate_limit]
-# Emails sent per hour across the whole local stack (the default, 2, gets in the way of testing).
-email_sent = 30
-
-# Every email the local stack sends lands here instead of a real inbox: http://127.0.0.1:54324
-[local_smtp]
-enabled = true
-port = 54324
 
 [realtime]
 enabled = false

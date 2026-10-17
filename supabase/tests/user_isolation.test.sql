@@ -6,14 +6,16 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(24);
+select plan(27);
 
-insert into auth.users (id, email) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', 'a@test.local'),
-  ('bbbbbbbb-0000-0000-0000-000000000002', 'b@test.local');
+insert into users (id, email, password_hash) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'a@test.local', 'scrypt$a$a'),
+  ('bbbbbbbb-0000-0000-0000-000000000002', 'b@test.local', 'scrypt$b$b');
+insert into sessions (token_hash, user_id, expires_at) values
+  ('a-token', 'aaaaaaaa-0000-0000-0000-000000000001', now() + interval '1 day');
 
--- Acts as a signed-in user for the rest of the transaction, the way PostgREST does for a request
--- carrying that user's JWT.
+-- Acts as a signed-in user for the rest of the transaction, the way the app does for a request
+-- with that user's session (asUser in lib/db.ts).
 create function pg_temp.sign_in_as(p_user_id uuid) returns void language sql as $$
   select set_config('role', 'authenticated', true),
          set_config('request.jwt.claims', json_build_object('sub', p_user_id, 'role', 'authenticated')::text, true);
@@ -90,6 +92,15 @@ select results_eq(
   $$select bool_and(plan_id is null and user_id = 'aaaaaaaa-0000-0000-0000-000000000001') from workout_logs$$,
   $$values (true)$$,
   'Deleting a plan keeps its logs'
+);
+
+-- Accounts and sessions: off limits to signed-in users -----------------------------------------
+
+select throws_ok('select 1 from users', '42501', null, 'Signed-in users cannot read accounts or password hashes');
+select throws_ok('select 1 from sessions', '42501', null, 'Signed-in users cannot read sessions');
+select throws_ok(
+  $$insert into sessions (token_hash, user_id, expires_at) values ('planted', 'bbbbbbbb-0000-0000-0000-000000000002', now() + interval '1 day')$$,
+  '42501', null, 'Signed-in users cannot create sessions'
 );
 
 -- Signed out: no access at all ------------------------------------------------------------------
