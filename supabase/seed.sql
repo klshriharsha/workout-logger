@@ -1,0 +1,5 @@
+-- Seed data for LOCAL development only. Runs after every `pnpm exec supabase db reset`.
+-- Never referenced by production deploys (`supabase db push`).
+--
+-- Keep every statement idempotent (ON CONFLICT DO NOTHING) so repeated resets stay clean.
+-- Leave this file empty if you don't need fixture rows.

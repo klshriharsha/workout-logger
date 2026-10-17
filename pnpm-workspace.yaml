@@ -1,3 +1,6 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  # `supabase` runs a postinstall that downloads the platform CLI binary; it must be
+  # allowed to build or `pnpm exec supabase` won't find the `supabase` executable.
+  supabase: true

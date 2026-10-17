@@ -1,0 +1,10 @@
+# Supabase CLI local artifacts — never commit these.
+.branches
+.temp
+.env
+
+# Diff/pull scratch files the CLI may leave behind on error.
+*.tmp
+
+# Supabase Studio saved SQL queries (local scratch, may contain destructive statements).
+snippets

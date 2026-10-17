@@ -1,0 +1,58 @@
+name: Database migrations
+
+# Migrations are deployed from CI, never from a laptop, so the migration history in the
+# repo is always the source of truth for the hosted database.
+#
+# - Pull requests touching supabase/**: dry-run `db push` to show which migrations would
+#   apply, without changing anything.
+# - Push to main touching supabase/**: apply pending migrations to the production project.
+# - Manual (workflow_dispatch): apply pending migrations on demand, e.g. to bootstrap a
+#   freshly created production project whose schema is still empty.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN  - personal access token: https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_ID    - project ref (the <ref> in https://<ref>.supabase.co)
+#   SUPABASE_DB_PASSWORD   - database password (Dashboard -> Settings -> Database)
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**", "supabase/config.toml"]
+  pull_request:
+    paths: ["supabase/migrations/**", "supabase/config.toml"]
+  # Lets a fresh production project be bootstrapped (or re-synced) on demand, since the
+  # path filters above only fire when migration files themselves change.
+  workflow_dispatch:
+
+concurrency:
+  # Never let two deploys race on the same database.
+  group: db-migrations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Show pending migrations
+        run: supabase migration list
+
+      - name: Dry run (pull requests)
+        if: github.event_name == 'pull_request'
+        run: supabase db push --dry-run
+
+      - name: Apply migrations (main)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: supabase db push --yes
