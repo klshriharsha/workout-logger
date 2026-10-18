@@ -206,12 +206,19 @@ type ExerciseCardProps = {
 }
 
 function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
-  const [noteOpen, setNoteOpen] = useState(exercise.note !== '')
+  // The note is edited as a local draft and only committed (and autosaved) on Save, so Cancel
+  // can throw the edit away.
+  const [noteDraft, setNoteDraft] = useState<string | null>(null)
+  const editingNote = noteDraft !== null
   const doneCount = exercise.sets.filter((set) => set.done).length
   const allDone = doneCount > 0 && doneCount === exercise.sets.length
 
   const updateSet = (setKey: string, update: (set: SetDraft) => SetDraft) =>
     onChange((current) => ({ ...current, sets: current.sets.map((set) => (set.key === setKey ? update(set) : set)) }))
+
+  // A set can only be ticked off once both fields are filled in (0 kg for bodyweight work).
+  const isFilled = ({ reps, weight }: Pick<SetDraft, 'reps' | 'weight'>) =>
+    Number(reps) > 0 && weight !== '' && !Number.isNaN(Number(weight))
 
   // Changing a set's weight carries it to the later sets that still had the old weight and
   // aren't done yet, so going up 2.5 kg is one edit, not one per set.
@@ -221,19 +228,18 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
       return {
         ...current,
         sets: current.sets.map((set, index) => {
-          if (index === setIndex) return { ...set, weight }
+          // Clearing a done set's field un-ticks it, so a done set is always filled in.
+          if (index === setIndex) return { ...set, weight, done: set.done && isFilled({ ...set, weight }) }
           if (index > setIndex && !set.done && set.weight === previousWeight) return { ...set, weight }
           return set
         }),
       }
     })
 
-  const toggleDone = (set: SetDraft) =>
-    updateSet(set.key, (current) => ({
-      ...current,
-      done: !current.done,
-      reps: current.reps === '' ? String(exercise.targetReps) : current.reps,
-    }))
+  const toggleDone = (set: SetDraft) => {
+    if (!set.done && !isFilled(set)) return
+    updateSet(set.key, (current) => ({ ...current, done: !current.done }))
+  }
 
   const addSet = () =>
     onChange((current) => {
@@ -248,6 +254,13 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
     })
 
   const removeSet = () => onChange((current) => ({ ...current, sets: current.sets.slice(0, -1) }))
+
+  const saveNote = () => {
+    if (noteDraft === null) return
+    const note = noteDraft.trim()
+    if (note !== exercise.note) onChange((current) => ({ ...current, note }))
+    setNoteDraft(null)
+  }
 
   return (
     <article
@@ -312,7 +325,12 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
               <input
                 className={`${numberInputClass} ${set.done ? 'border-teal-tint-border bg-teal-tint' : ''}`}
                 value={set.reps}
-                onChange={(event) => updateSet(set.key, (current) => ({ ...current, reps: cleanReps(event.target.value) }))}
+                onChange={(event) =>
+                  updateSet(set.key, (current) => {
+                    const reps = cleanReps(event.target.value)
+                    return { ...current, reps, done: current.done && isFilled({ ...current, reps }) }
+                  })
+                }
                 onFocus={(event) => event.target.select()}
                 inputMode="numeric"
                 placeholder={String(exercise.targetReps)}
@@ -322,12 +340,14 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
               <button
                 type="button"
                 onClick={() => toggleDone(set)}
+                disabled={!set.done && !isFilled(set)}
                 aria-pressed={set.done}
                 aria-label={`${label} done`}
-                className={`grid h-11 w-11 place-items-center rounded-lg border transition-colors ${
+                title={!set.done && !isFilled(set) ? 'Enter kg and reps first (0 kg for bodyweight)' : undefined}
+                className={`grid h-11 w-11 place-items-center rounded-lg border-2 transition-colors ${
                   set.done
-                    ? 'border-teal-deep bg-teal-deep text-teal-on-accent hover:bg-teal-deep-hover'
-                    : 'border-sand-860 text-sand-780 hover:border-teal-tint-border hover:bg-teal-hover-bg hover:text-teal-deep'
+                    ? 'border-teal-deep bg-teal-deep text-teal-on-accent hover:border-teal-deep-hover hover:bg-teal-deep-hover'
+                    : 'border-teal-accent bg-sand-1000 text-teal-deep hover:bg-teal-hover-bg disabled:cursor-not-allowed disabled:border-dashed disabled:border-sand-860 disabled:bg-transparent disabled:text-sand-860'
                 }`}
               >
                 <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
@@ -356,10 +376,10 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
         >
           − Remove set
         </button>
-        {!noteOpen && (
+        {!editingNote && exercise.note === '' && (
           <button
             type="button"
-            onClick={() => setNoteOpen(true)}
+            onClick={() => setNoteDraft('')}
             className="ml-auto rounded-lg px-2.5 py-2 text-sm font-semibold text-ink-450 transition-colors hover:bg-sand-940 hover:text-ink-240"
           >
             Add note
@@ -367,17 +387,51 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
         )}
       </div>
 
-      {noteOpen && (
-        <textarea
-          className="mt-1.5 block w-full resize-y rounded-lg border border-sand-880 bg-sand-1000 px-3 py-2.5 text-sm text-ink-240 outline-none transition-colors placeholder:text-sand-680 focus:border-teal-accent"
-          value={exercise.note}
-          onChange={(event) => onChange((current) => ({ ...current, note: event.target.value }))}
-          placeholder="How did it feel? Form cues, pain, machine settings…"
-          aria-label={`${exercise.name} note`}
-          maxLength={MAX_NOTE_LENGTH}
-          rows={2}
-          autoFocus={exercise.note === ''}
-        />
+      {!editingNote && exercise.note !== '' && (
+        <button
+          type="button"
+          onClick={() => setNoteDraft(exercise.note)}
+          aria-label={`Edit ${exercise.name} note`}
+          className="mt-1.5 block w-full rounded-lg border border-transparent px-3 py-2.5 text-left text-sm whitespace-pre-wrap text-ink-480 transition-colors hover:border-sand-880 hover:bg-sand-940"
+        >
+          {exercise.note}
+        </button>
+      )}
+
+      {editingNote && (
+        <div className="mt-1.5">
+          <textarea
+            className="block w-full resize-y rounded-lg border border-sand-880 bg-sand-1000 px-3 py-2.5 text-sm text-ink-240 outline-none transition-colors placeholder:text-sand-680 focus:border-teal-accent"
+            value={noteDraft}
+            onChange={(event) => setNoteDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setNoteDraft(null)
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) saveNote()
+            }}
+            placeholder="How did it feel? Form cues, pain, machine settings…"
+            aria-label={`${exercise.name} note`}
+            maxLength={MAX_NOTE_LENGTH}
+            rows={2}
+            autoFocus
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setNoteDraft(null)}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-ink-450 transition-colors hover:bg-sand-940 hover:text-ink-240"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveNote}
+              disabled={noteDraft.trim() === exercise.note}
+              className="rounded-lg bg-teal-deep px-3 py-1.5 text-sm font-semibold text-teal-on-accent transition-colors hover:bg-teal-deep-hover disabled:opacity-40"
+            >
+              Save note
+            </button>
+          </div>
+        </div>
       )}
     </article>
   )
