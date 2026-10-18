@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, type FormEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Toast } from '@/components/Toast'
 import { useToast } from '@/hooks/useToast'
 import { createPlanSchema, MAX_EXERCISES, MAX_REPS, MAX_SETS, type CreatePlanInput } from '@/lib/plan-schema'
@@ -63,6 +63,21 @@ export function PlanForm() {
   const [exercises, setExercises] = useState(initialExercises)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const shouldReset = useRef(false)
+
+  // With Cache Components, navigating away hides this page (React Activity) instead of
+  // unmounting it, so a saved plan's fields and "Saving…" state would greet the next visit.
+  // Reset once the page is hidden after a successful save; unsaved drafts are kept.
+  useLayoutEffect(() => {
+    return () => {
+      if (!shouldReset.current) return
+      shouldReset.current = false
+      setName('')
+      setExercises(initialExercises)
+      setErrors({})
+      setSubmitting(false)
+    }
+  }, [])
 
   const updateExercise = (exerciseKey: string, update: (exercise: ExerciseDraft) => ExerciseDraft) =>
     setExercises((current) => current.map((exercise) => (exercise.key === exerciseKey ? update(exercise) : exercise)))
@@ -108,6 +123,7 @@ export function PlanForm() {
 
       if (!response.ok) throw new Error(`Request failed with ${response.status}`)
 
+      shouldReset.current = true
       router.push('/plans')
     } catch {
       flash('Could not save the plan. Try again.')
