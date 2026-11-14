@@ -41,18 +41,20 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: CLI majors change defaults (v3 made db commands target the local
+          # stack unless --remote is passed), which silently broke this workflow.
+          version: 3.1.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Show pending migrations
-        run: supabase migration list
+        run: supabase migration list --remote --password "$SUPABASE_DB_PASSWORD"
 
       - name: Dry run (pull requests)
         if: github.event_name == 'pull_request'
-        run: supabase db push --dry-run
+        run: supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --dry-run
 
       - name: Apply migrations (main)
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: supabase db push --yes
+        run: supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --yes
