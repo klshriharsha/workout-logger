@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { plural } from '@/lib/format'
 import type { PlanSummary } from '@/lib/plan-schema'
@@ -44,14 +45,20 @@ export function PlanList() {
   return (
     <ul className="flex flex-col gap-2.5">
       {state.plans.map((plan) => (
-        <li
-          key={plan.id}
-          className="animate-in-200 flex items-center justify-between gap-3 rounded-2xl border border-sand-900 bg-sand-1000 px-4.5 py-3.5 shadow-card"
-        >
-          <span className="truncate text-[15px] font-semibold">{plan.name}</span>
-          <span className="shrink-0 font-mono text-xs text-sand-600">
-            {plural(plan.exerciseCount, 'exercise')} · {plural(plan.setCount, 'set')}
-          </span>
+        <li key={plan.id} className="animate-in-200">
+          <Link
+            href={`/plans/${plan.id}/edit`}
+            aria-label={`Edit ${plan.name}`}
+            className="group flex items-center justify-between gap-3 rounded-2xl border border-sand-900 bg-sand-1000 px-4.5 py-3.5 text-ink-240 shadow-card transition-colors hover:border-teal-tint-border hover:no-underline"
+          >
+            <span className="truncate text-[15px] font-semibold">{plan.name}</span>
+            <span className="flex shrink-0 items-center gap-3 font-mono text-xs text-sand-600">
+              {plural(plan.exerciseCount, 'exercise')} · {plural(plan.setCount, 'set')}
+              <span className="tracking-[0.1em] uppercase group-hover:text-teal-deep" aria-hidden>
+                Edit →
+              </span>
+            </span>
+          </Link>
         </li>
       ))}
     </ul>

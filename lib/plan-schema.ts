@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// Shared by the plan form (client) and POST /api/plans (server). Limits mirror the CHECK
+// Shared by the plan form (client) and POST /api/plans, PUT /api/plans/:id (server). Limits mirror the CHECK
 // constraints in supabase/migrations/*_create_workout_plans.sql.
 
 export const MAX_EXERCISES = 30
@@ -29,6 +29,8 @@ export const createPlanSchema = z.object({
     .max(MAX_EXERCISES, `At most ${MAX_EXERCISES} exercises`),
 })
 
+export const planIdSchema = z.uuid()
+
 export type CreatePlanInput = z.input<typeof createPlanSchema>
 export type CreatePlan = z.output<typeof createPlanSchema>
 
@@ -38,4 +40,11 @@ export type PlanSummary = {
   createdAt: string
   exerciseCount: number
   setCount: number
+}
+
+/** A plan as the edit form loads it: GET /api/plans/:id. */
+export type Plan = {
+  id: string
+  name: string
+  exercises: { name: string; sets: number; reps: number }[]
 }

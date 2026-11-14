@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Toast } from '@/components/Toast'
 import { useToast } from '@/hooks/useToast'
-import { createPlanSchema, MAX_EXERCISES, MAX_REPS, MAX_SETS, type CreatePlanInput } from '@/lib/plan-schema'
+import { createPlanSchema, MAX_EXERCISES, MAX_REPS, MAX_SETS, type CreatePlanInput, type Plan } from '@/lib/plan-schema'
 
 // Inputs hold raw strings so a half-typed value ("") isn't coerced while editing; they're
 // converted to numbers once, on submit.
@@ -23,6 +23,9 @@ const newKey = () => `draft-${++keySequence}`
 const newExercise = (): ExerciseDraft => ({ key: newKey(), name: '', sets: '', reps: '' })
 
 const initialExercises: ExerciseDraft[] = [{ key: 'initial-exercise', name: '', sets: '', reps: '' }]
+
+const toDrafts = (plan: Plan): ExerciseDraft[] =>
+  plan.exercises.map((exercise) => ({ key: newKey(), name: exercise.name, sets: String(exercise.sets), reps: String(exercise.reps) }))
 
 const toNumber = (value: string) => (value.trim() === '' ? undefined : Number(value))
 
@@ -56,11 +59,12 @@ function RemoveIcon() {
   )
 }
 
-export function PlanForm() {
+/** Creates a plan, or with `plan`, edits that one. */
+export function PlanForm({ plan }: { plan?: Plan }) {
   const router = useRouter()
   const { toast, flash } = useToast()
-  const [name, setName] = useState('')
-  const [exercises, setExercises] = useState(initialExercises)
+  const [name, setName] = useState(plan?.name ?? '')
+  const [exercises, setExercises] = useState(() => (plan ? toDrafts(plan) : initialExercises))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const shouldReset = useRef(false)
@@ -72,12 +76,12 @@ export function PlanForm() {
     return () => {
       if (!shouldReset.current) return
       shouldReset.current = false
-      setName('')
-      setExercises(initialExercises)
+      setName(plan?.name ?? '')
+      setExercises(plan ? toDrafts(plan) : initialExercises)
       setErrors({})
       setSubmitting(false)
     }
-  }, [])
+  }, [plan])
 
   const updateExercise = (exerciseKey: string, update: (exercise: ExerciseDraft) => ExerciseDraft) =>
     setExercises((current) => current.map((exercise) => (exercise.key === exerciseKey ? update(exercise) : exercise)))
@@ -115,8 +119,8 @@ export function PlanForm() {
     setSubmitting(true)
 
     try {
-      const response = await fetch('/api/plans', {
-        method: 'POST',
+      const response = await fetch(plan ? `/api/plans/${plan.id}` : '/api/plans', {
+        method: plan ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),
       })
@@ -252,7 +256,7 @@ export function PlanForm() {
           disabled={submitting}
           className="rounded-lg bg-teal-deep px-5 py-2.5 text-sm font-semibold text-teal-on-accent shadow-cta transition-colors hover:bg-teal-deep-hover disabled:opacity-60"
         >
-          {submitting ? 'Saving…' : 'Save plan'}
+          {submitting ? 'Saving…' : plan ? 'Save changes' : 'Save plan'}
         </button>
       </div>
 

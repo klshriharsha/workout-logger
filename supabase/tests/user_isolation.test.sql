@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(29);
+select plan(33);
 
 insert into users (id, email, password_hash) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'a@test.local', 'scrypt$a$a'),
@@ -50,6 +50,11 @@ select is(get_exercise_history(), '[]'::jsonb, 'B''s history has none of A''s wo
 select is(create_workout_log('2026-10-02', (select id from ids where name = 'plan_a')), null, 'B cannot start a log from A''s plan');
 select ok(not save_workout_log('2026-10-01', '[]'), 'B cannot overwrite A''s log');
 
+select ok(
+  not update_workout_plan((select id from ids where name = 'plan_a'), 'Hijacked', '[{"name":"Curl","sets":1,"reps":1}]'),
+  'B cannot edit A''s plan'
+);
+
 delete from workout_logs where log_date = '2026-10-01';
 delete from workout_plans;
 update workout_plans set name = 'Hijacked';
@@ -91,6 +96,21 @@ select is(
   'A''s second log shows A''s last note'
 );
 select is(jsonb_array_length(get_exercise_history('bench')), 1, 'A''s history has exactly A''s one finished session');
+
+-- Editing a plan replaces its exercises; logs already started from it keep theirs.
+select ok(
+  update_workout_plan((select id from ids where name = 'plan_a'), ' Upper A ', '[{"name":"Row","sets":3,"reps":8},{"name":"Bench","sets":4,"reps":6}]'),
+  'A edits their plan'
+);
+select results_eq(
+  $$select p.name, e.name, e.sets::int, e.reps::int from workout_plans p join plan_exercises e on e.plan_id = p.id order by e.position$$,
+  $$values ('Upper A', 'Row', 3, 8), ('Upper A', 'Bench', 4, 6)$$,
+  'A''s plan has the new name and exercises, in order'
+);
+select is(
+  get_workout_log('2026-10-03') -> 'exercises' -> 0 ->> 'name', 'Bench',
+  'Editing a plan leaves logs started from it unchanged'
+);
 
 -- Deleting a plan keeps its logs (and their owner), clearing only the link.
 delete from workout_plans where id = (select id from ids where name = 'plan_a');
