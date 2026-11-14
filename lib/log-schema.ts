@@ -50,11 +50,17 @@ export type PreviousSession = {
   sets: { reps: number; weight: number | null }[]
 }
 
+/** The latest note left on an exercise with the same name on an earlier day. */
+export type PreviousNote = {
+  date: string
+  note: string
+}
+
 export type WorkoutLog = {
   date: string
   planId: string | null
   planName: string
-  exercises: (LoggedExercise & { previous: PreviousSession | null })[]
+  exercises: (LoggedExercise & { previous: PreviousSession | null; previousNote: PreviousNote | null })[]
 }
 
 export type LogSummary = {

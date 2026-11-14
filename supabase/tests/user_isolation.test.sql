@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(27);
+select plan(29);
 
 insert into users (id, email, password_hash) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'a@test.local', 'scrypt$a$a'),
@@ -67,6 +67,7 @@ select is(
   'B''s first log is not pre-filled with A''s weights'
 );
 select is(get_workout_log('2026-10-01') -> 'exercises' -> 0 -> 'previous', 'null'::jsonb, 'B''s log shows no previous session from A');
+select is(get_workout_log('2026-10-01') -> 'exercises' -> 0 -> 'previousNote', 'null'::jsonb, 'B''s log shows none of A''s notes');
 
 -- A again: everything intact, and A's own "last time" still works -------------------------------
 
@@ -83,6 +84,11 @@ select results_eq(
     where l.log_date = '2026-10-03' order by s.position$$,
   $$values (100.00::numeric(6, 2)), (100.00)$$,
   'A''s second log is pre-filled from A''s last workout'
+);
+select is(
+  get_workout_log('2026-10-03') -> 'exercises' -> 0 -> 'previousNote',
+  '{"date": "2026-10-01", "note": "felt strong"}'::jsonb,
+  'A''s second log shows A''s last note'
 );
 select is(jsonb_array_length(get_exercise_history('bench')), 1, 'A''s history has exactly A''s one finished session');
 

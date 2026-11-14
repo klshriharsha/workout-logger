@@ -7,6 +7,7 @@ import { plural } from '@/lib/format'
 import {
   MAX_LOGGED_SETS,
   MAX_NOTE_LENGTH,
+  type PreviousNote,
   type PreviousSession,
   type SaveLog,
   type WorkoutLog,
@@ -24,6 +25,7 @@ type ExerciseDraft = {
   targetReps: number
   note: string
   previous: PreviousSession | null
+  previousNote: PreviousNote | null
   sets: SetDraft[]
 }
 
@@ -210,6 +212,8 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
   // can throw the edit away.
   const [noteDraft, setNoteDraft] = useState<string | null>(null)
   const editingNote = noteDraft !== null
+  // Last time's note stays folded behind a chip so it costs no space until it's wanted.
+  const [showingPreviousNote, setShowingPreviousNote] = useState(false)
   const doneCount = exercise.sets.filter((set) => set.done).length
   const allDone = doneCount > 0 && doneCount === exercise.sets.length
 
@@ -270,7 +274,10 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
       }`}
     >
       <header className="flex items-baseline gap-2">
-        <span className="font-mono text-[11px] tracking-[0.1em] text-sand-600">{String(index + 1).padStart(2, '0')}</span>
+        {/* Fixed width + gap-2 = 26px, matching the pl-6.5 / ml-6.5 indent of the rows below. */}
+        <span className="w-4.5 shrink-0 font-mono text-[11px] tracking-[0.1em] text-sand-600">
+          {String(index + 1).padStart(2, '0')}
+        </span>
         <h3 id={`${exercise.key}-name`} className="min-w-0 flex-1 truncate text-[15px] font-semibold">
           {exercise.name}
         </h3>
@@ -278,17 +285,47 @@ function ExerciseCard({ exercise, index, today, onChange }: ExerciseCardProps) {
           {doneCount}/{exercise.sets.length}
         </span>
       </header>
-      <p className="mt-0.5 pl-6.5 font-mono text-xs text-sand-600">
-        Target {exercise.targetSets} × {exercise.targetReps}
-        {exercise.previous && (
-          <>
-            <span aria-hidden> · </span>
-            <span className="text-ink-480">
-              Last ({shortDate(exercise.previous.date, today)}): {exercise.previous.sets.map(formatSet).join(', ')}
-            </span>
-          </>
+      <div className="mt-0.5 flex items-center gap-2 pl-6.5">
+        <p className="min-w-0 flex-1 font-mono text-xs text-sand-600">
+          Target {exercise.targetSets} × {exercise.targetReps}
+          {exercise.previous && (
+            <>
+              <span aria-hidden> · </span>
+              <span className="text-ink-480">
+                Last ({shortDate(exercise.previous.date, today)}): {exercise.previous.sets.map(formatSet).join(', ')}
+              </span>
+            </>
+          )}
+        </p>
+        {exercise.previousNote && (
+          <button
+            type="button"
+            onClick={() => setShowingPreviousNote((showing) => !showing)}
+            aria-expanded={showingPreviousNote}
+            aria-controls={`${exercise.key}-previous-note`}
+            className={`relative inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px font-mono text-xs whitespace-nowrap transition-colors before:absolute before:-inset-x-1 before:-inset-y-2.5 ${
+              showingPreviousNote ? 'bg-sand-930 text-ink-240' : 'bg-sand-950 text-ink-450 hover:bg-sand-940 hover:text-ink-240'
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z" strokeLinejoin="round" />
+            </svg>
+            Last note
+          </button>
         )}
-      </p>
+      </div>
+
+      {exercise.previousNote && showingPreviousNote && (
+        <figure
+          id={`${exercise.key}-previous-note`}
+          className="animate-in-140 mt-2 ml-6.5 rounded-r-lg border-l-2 border-sand-860 bg-sand-975 px-3 py-2"
+        >
+          <figcaption className="font-mono text-[10px] tracking-[0.1em] text-sand-600 uppercase">
+            Note · {shortDate(exercise.previousNote.date, today)}
+          </figcaption>
+          <blockquote className="mt-0.5 text-sm whitespace-pre-wrap text-ink-480">{exercise.previousNote.note}</blockquote>
+        </figure>
+      )}
 
       <div className="mt-3 grid grid-cols-[28px_minmax(0,1fr)_minmax(0,1fr)_44px] items-center gap-x-2 gap-y-1.5">
         <span className="font-mono text-[10px] tracking-[0.1em] text-sand-600 uppercase">Set</span>
